@@ -1,0 +1,121 @@
+{
+  "Knot": {
+    "prefix": "knot",
+    "body": [
+      "=== ${1:knot_name} ===",
+      "${0}",
+      ""
+    ],
+    "description": "New knot"
+  },
+  "Knot with parameters": {
+    "prefix": "knotp",
+    "body": [
+      "=== ${1:knot_name}(${2:params}) ===",
+      "${0}",
+      ""
+    ],
+    "description": "New knot with parameters"
+  },
+  "Stitch": {
+    "prefix": "stitch",
+    "body": [
+      "= ${1:stitch_name}",
+      "${0}",
+      ""
+    ],
+    "description": "New stitch"
+  },
+  "Function": {
+    "prefix": "func",
+    "body": [
+      "=== function ${1:name}(${2:params}) ===",
+      "~ return ${0}",
+      ""
+    ],
+    "description": "New function"
+  },
+  "Choice": {
+    "prefix": "choice",
+    "body": [
+      "* [${1:choice text}]",
+      "  ${0}",
+      "  -> ${2:target}"
+    ],
+    "description": "Choice with divert"
+  },
+  "Sticky choice": {
+    "prefix": "sticky",
+    "body": [
+      "+ [${1:choice text}]",
+      "  ${0}",
+      "  -> ${2:target}"
+    ],
+    "description": "Sticky choice with divert"
+  },
+  "Variable": {
+    "prefix": "var",
+    "body": "VAR ${1:name} = ${0:0}",
+    "description": "Global variable"
+  },
+  "Constant": {
+    "prefix": "const",
+    "body": "CONST ${1:NAME} = ${0:0}",
+    "description": "Constant"
+  },
+  "List": {
+    "prefix": "list",
+    "body": "LIST ${1:name} = ${0:item1, item2, item3}",
+    "description": "List declaration"
+  },
+  "Conditional": {
+    "prefix": "if",
+    "body": [
+      "{ ${1:condition}:",
+      "  ${0}",
+      "}"
+    ],
+    "description": "Conditional block"
+  },
+  "Conditional with else": {
+    "prefix": "ifelse",
+    "body": [
+      "{ ${1:condition}:",
+      "  ${2}",
+      "- else:",
+      "  ${0}",
+      "}"
+    ],
+    "description": "Conditional with else"
+  },
+  "Tunnel": {
+    "prefix": "tunnel",
+    "body": "-> ${1:knot_name} ->",
+    "description": "Tunnel"
+  },
+  "Thread": {
+    "prefix": "thread",
+    "body": "<- ${1:knot_name}",
+    "description": "Thread"
+  },
+  "Include": {
+    "prefix": "include",
+    "body": "INCLUDE ${0:filename.ink}",
+    "description": "Include file"
+  },
+  "External function": {
+    "prefix": "external",
+    "body": "EXTERNAL ${1:name}(${0:params})",
+    "description": "External function declaration"
+  },
+  "Sequence": {
+    "prefix": "seq",
+    "body": "{~${1:text1}|${2:text2}|${0:text3}}",
+    "description": "Shuffle sequence"
+  },
+  "Cycle": {
+    "prefix": "cycle",
+    "body": "{&${1:text1}|${2:text2}|${0:text3}}",
+    "description": "Cycle sequence"
+  }
+}

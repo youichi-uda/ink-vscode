@@ -1,0 +1,8 @@
+**/*.ts
+**/tsconfig.json
+**/esbuild.js
+src/
+node_modules/
+.vscode/
+.gitignore
+plan_ink_vscode.md

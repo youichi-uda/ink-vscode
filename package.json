@@ -1,0 +1,253 @@
+{
+  "name": "ink-vscode",
+  "displayName": "Ink Language",
+  "description": "The definitive Ink scripting language extension — IntelliSense, branch visualizer, statistics, and interactive story preview",
+  "version": "0.1.0",
+  "publisher": "ink-lang",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Visualization"
+  ],
+  "keywords": [
+    "ink",
+    "inkle",
+    "interactive fiction",
+    "narrative",
+    "visual novel",
+    "game writing"
+  ],
+  "activationEvents": [
+    "onLanguage:ink",
+    "workspaceContains:**/*.ink"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ink",
+        "aliases": [
+          "Ink",
+          "ink"
+        ],
+        "extensions": [
+          ".ink",
+          ".ink2"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/ink-icon.svg",
+          "dark": "./media/ink-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ink",
+        "scopeName": "source.ink",
+        "path": "./syntaxes/ink.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "ink",
+        "path": "./snippets/ink.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "ink.previewStory",
+        "title": "Ink: Preview Story",
+        "icon": "$(play)"
+      },
+      {
+        "command": "ink.showVisualizer",
+        "title": "Ink: Show Branch Visualizer",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "ink.showStatistics",
+        "title": "Ink: Show Statistics",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "ink.compileStory",
+        "title": "Ink: Compile to JSON"
+      },
+      {
+        "command": "ink.restartPreview",
+        "title": "Ink: Restart Story Preview",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "ink.exportLocalization",
+        "title": "Ink: Export Localization (CSV)"
+      },
+      {
+        "command": "ink.sidebar.refreshOutline",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ink.sidebar.refreshVariables",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ink.sidebar.goToSymbol",
+        "title": "Go to Symbol"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceLangId == ink",
+          "command": "ink.previewStory",
+          "group": "navigation@1"
+        },
+        {
+          "when": "resourceLangId == ink",
+          "command": "ink.showVisualizer",
+          "group": "navigation@2"
+        },
+        {
+          "when": "resourceLangId == ink",
+          "command": "ink.showStatistics",
+          "group": "navigation@3"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "ink.sidebar.refreshOutline",
+          "when": "view == inkStoryOutline",
+          "group": "navigation"
+        },
+        {
+          "command": "ink.sidebar.refreshVariables",
+          "when": "view == inkVariables",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ink.sidebar.refreshOutline",
+          "when": "false"
+        },
+        {
+          "command": "ink.sidebar.refreshVariables",
+          "when": "false"
+        },
+        {
+          "command": "ink.sidebar.goToSymbol",
+          "when": "false"
+        },
+        {
+          "command": "ink.previewStory",
+          "when": "resourceLangId == ink"
+        },
+        {
+          "command": "ink.showVisualizer",
+          "when": "resourceLangId == ink"
+        },
+        {
+          "command": "ink.showStatistics",
+          "when": "resourceLangId == ink"
+        },
+        {
+          "command": "ink.compileStory",
+          "when": "resourceLangId == ink"
+        },
+        {
+          "command": "ink.restartPreview",
+          "when": "resourceLangId == ink"
+        },
+        {
+          "command": "ink.exportLocalization",
+          "when": "resourceLangId == ink"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "inkExplorer",
+          "title": "Ink",
+          "icon": "media/ink-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "inkExplorer": [
+        {
+          "id": "inkStoryOutline",
+          "name": "Story Outline",
+          "when": "resourceLangId == ink || workspaceFolderCount > 0"
+        },
+        {
+          "id": "inkVariables",
+          "name": "Variables & Lists",
+          "when": "resourceLangId == ink || workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Ink Language",
+      "properties": {
+        "ink.mainFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the main .ink file (for multi-file projects with INCLUDE). Leave empty to use the currently active file."
+        },
+        "ink.countAllVisits": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable COUNT_ALL_VISITS flag during compilation."
+        },
+        "ink.outputDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Directory for compiled JSON output. Leave empty to output next to the source file."
+        },
+        "ink.compileOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically compile to JSON on save."
+        },
+        "ink.previewAutoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically update the story preview when the source file changes."
+        },
+        "ink.readingSpeed": {
+          "type": "number",
+          "default": 200,
+          "description": "Estimated reading speed (words per minute) for playtime estimation."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "lint": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "inkjs": "^2.4.0",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}
