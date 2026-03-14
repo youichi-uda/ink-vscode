@@ -4,7 +4,12 @@
   "description": "The definitive Ink scripting language extension — IntelliSense, branch visualizer, statistics, and interactive story preview",
   "version": "0.1.0",
   "publisher": "ink-lang",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
+  "icon": "media/ink-icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/youichi-uda/ink-vscode.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

@@ -5,4 +5,8 @@ src/
 node_modules/
 .vscode/
 .gitignore
+.mcp.json
+**/.mcp.json
 plan_ink_vscode.md
+examples/
+**/*.map
