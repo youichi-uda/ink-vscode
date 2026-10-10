@@ -1,3 +1,4 @@
+import { attachPanelPersistence, restorePanelState } from "./panelPersistence";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
@@ -40,6 +41,18 @@ export class StatisticsPanel {
     );
   }
 
+  public static registerSerializer(context: vscode.ExtensionContext, client: LanguageClient) {
+    const extensionUri = context.extensionUri;
+    context.subscriptions.push(vscode.window.registerWebviewPanelSerializer(StatisticsPanel.viewType, {
+      async deserializeWebviewPanel(panel, state: any) {
+        panel.webview.options = { ...panel.webview.options, enableScripts: true };
+        const restored = new StatisticsPanel(panel, extensionUri, client, state?.inkSnapshot?.readingSpeed || 200);
+        StatisticsPanel.currentPanel = restored;
+        restorePanelState(restored, state);
+      }
+    }));
+  }
+
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
@@ -49,6 +62,7 @@ export class StatisticsPanel {
     this.panel = panel;
     this.client = client;
     this.readingSpeed = readingSpeed;
+    attachPanelPersistence(this);
     this.panel.webview.html = this.getHtmlForWebview();
 
     this.panel.webview.onDidReceiveMessage(
@@ -66,7 +80,7 @@ export class StatisticsPanel {
     });
     this.disposables.push(watcher);
 
-    setTimeout(() => this.refresh(), 300);
+
   }
 
   private async refresh() {
@@ -342,7 +356,37 @@ export class StatisticsPanel {
       div.textContent = text;
       return div.innerHTML;
     }
-  </script>
+
+    let inkStoredState = vscode.getState() || {};
+    function inkSaveUi() {
+      const scroll = {};
+      for (const el of document.querySelectorAll('[id]')) {
+        if (el.scrollTop || el.scrollLeft) scroll[el.id] = [el.scrollLeft, el.scrollTop];
+      }
+      inkStoredState.ui = {scroll, zoom: typeof currentZoom === 'number' ? currentZoom : undefined};
+      vscode.setState(inkStoredState);
+    }
+    window.addEventListener('message', event => {
+      if (event.data.inkSnapshot) {
+        inkStoredState.inkSnapshot = event.data.inkSnapshot;
+        vscode.setState(inkStoredState);
+      }
+      if (event.data.inkRestoreUi && inkStoredState.ui) {
+        if (typeof currentZoom === 'number' && typeof inkStoredState.ui.zoom === 'number') {
+          currentZoom = inkStoredState.ui.zoom;
+          applyZoom();
+        }
+        for (const [id, pos] of Object.entries(inkStoredState.ui.scroll || {})) {
+          const el = document.getElementById(id);
+          if (el) { el.scrollLeft = pos[0]; el.scrollTop = pos[1]; }
+        }
+      }
+    });
+    document.addEventListener('scroll', inkSaveUi, true);
+    document.addEventListener('click', inkSaveUi);
+    vscode.postMessage({type:'inkReady'});
+
+</script>
 </body>
 </html>`;
   }

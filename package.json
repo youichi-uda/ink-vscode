@@ -28,7 +28,10 @@
   ],
   "activationEvents": [
     "onLanguage:ink",
-    "workspaceContains:**/*.ink"
+    "workspaceContains:**/*.ink",
+    "onWebviewPanel:inkPreview",
+    "onWebviewPanel:inkVisualizer",
+    "onWebviewPanel:inkStatistics"
   ],
   "main": "./dist/extension.js",
   "contributes": {
