@@ -1,3 +1,4 @@
+import { attachPanelPersistence, restorePanelState } from "./panelPersistence";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
@@ -37,6 +38,18 @@ export class VisualizerPanel {
     );
   }
 
+  public static registerSerializer(context: vscode.ExtensionContext, client: LanguageClient) {
+    const extensionUri = context.extensionUri;
+    context.subscriptions.push(vscode.window.registerWebviewPanelSerializer(VisualizerPanel.viewType, {
+      async deserializeWebviewPanel(panel, state) {
+        panel.webview.options = { ...panel.webview.options, enableScripts: true };
+        const restored = new VisualizerPanel(panel, extensionUri, client);
+        VisualizerPanel.currentPanel = restored;
+        restorePanelState(restored, state);
+      }
+    }));
+  }
+
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
@@ -44,6 +57,7 @@ export class VisualizerPanel {
   ) {
     this.panel = panel;
     this.client = client;
+    attachPanelPersistence(this);
     this.panel.webview.html = this.getHtmlForWebview();
 
     this.panel.webview.onDidReceiveMessage(
@@ -62,8 +76,7 @@ export class VisualizerPanel {
     });
     this.disposables.push(watcher);
 
-    // Initial load
-    setTimeout(() => this.refresh(), 300);
+
   }
 
   private async refresh() {
@@ -281,7 +294,11 @@ export class VisualizerPanel {
       switch (msg.type) {
         case 'graph':
           graphData = msg.data;
-          renderGraph(msg.data);
+          try { renderGraph(msg.data); }
+          catch (error) {
+            document.getElementById('canvas-container').innerHTML =
+              '<div class="error">Graph rendering failed: ' + escapeHtml(String(error.message || error)) + '</div>';
+          }
           break;
         case 'error':
           document.getElementById('canvas-container').innerHTML =
@@ -436,8 +453,8 @@ export class VisualizerPanel {
         const dashArray = isDead ? 'stroke-dasharray="5,3"' : '';
 
         svg += '<g class="node ' + (isDead ? 'dead ' : '') + (isFunction ? 'function' : '') + '" ';
-        svg += 'data-id="' + node.id + '" onclick="onNodeClick(\'' + node.id + '\')" ';
-        svg += 'onmouseover="onNodeHover(\'' + node.id + '\')" onmouseout="hideInfo()">';
+        svg += 'data-id="' + escapeHtml(node.id).replaceAll('"', '&quot;') + '" onclick="onNodeClick(this.dataset.id)" ';
+        svg += 'onmouseover="onNodeHover(this.dataset.id)" onmouseout="hideInfo()">';
 
         svg += '<rect x="' + pos.x + '" y="' + pos.y + '" ';
         svg += 'width="' + nodeWidth + '" height="' + nodeHeight + '" ';
@@ -538,7 +555,38 @@ export class VisualizerPanel {
       div.textContent = text;
       return div.innerHTML;
     }
-  </script>
+
+
+    let inkStoredState = vscode.getState() || {};
+    function inkSaveUi() {
+      const scroll = {};
+      for (const el of document.querySelectorAll('[id]')) {
+        if (el.scrollTop || el.scrollLeft) scroll[el.id] = [el.scrollLeft, el.scrollTop];
+      }
+      inkStoredState.ui = {scroll, zoom: typeof currentZoom === 'number' ? currentZoom : undefined};
+      vscode.setState(inkStoredState);
+    }
+    window.addEventListener('message', event => {
+      if (event.data.inkSnapshot) {
+        inkStoredState.inkSnapshot = event.data.inkSnapshot;
+        vscode.setState(inkStoredState);
+      }
+      if (event.data.inkRestoreUi && inkStoredState.ui) {
+        if (typeof currentZoom === 'number' && typeof inkStoredState.ui.zoom === 'number') {
+          currentZoom = inkStoredState.ui.zoom;
+          applyZoom();
+        }
+        for (const [id, pos] of Object.entries(inkStoredState.ui.scroll || {})) {
+          const el = document.getElementById(id);
+          if (el) { el.scrollLeft = pos[0]; el.scrollTop = pos[1]; }
+        }
+      }
+    });
+    document.addEventListener('scroll', inkSaveUi, true);
+    document.addEventListener('click', inkSaveUi);
+    vscode.postMessage({type:'inkReady'});
+
+</script>
 </body>
 </html>`;
   }

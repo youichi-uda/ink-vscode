@@ -1,3 +1,4 @@
+import { attachPanelPersistence, restorePanelState } from "./panelPersistence";
 import * as vscode from "vscode";
 import { LanguageClient } from "vscode-languageclient/node";
 
@@ -9,6 +10,34 @@ export class PreviewPanel {
   private disposables: vscode.Disposable[] = [];
   private documentUri: string = "";
   private story: any = null;
+  private rewindHistory: { state: string; view: any }[] = [];
+  private previewOutput: { text: string; tags: string[]; kind?: string }[] = [];
+  private previewView: any = null;
+
+  private clearHistory() {
+    this.rewindHistory = [];
+    this.previewOutput = [];
+    this.previewView = null;
+    this.panel.webview.postMessage({ type: "clear" });
+  }
+
+  private rewindStory() {
+    if (!this.story || !this.rewindHistory.length) return;
+    const snapshot = this.rewindHistory[this.rewindHistory.length - 1];
+    try {
+      this.story.state.LoadJson(snapshot.state);
+      this.rewindHistory.pop();
+      this.previewView = snapshot.view;
+      this.previewOutput = snapshot.view.output;
+      this.panel.webview.postMessage({
+        ...this.previewView, replaceOutput: false, output: [],
+        truncateOutput: this.previewOutput.length, canRewind: this.rewindHistory.length > 0,
+      });
+    } catch (error: any) {
+      this.panel.webview.postMessage({ type: "error", message: error?.message || String(error) });
+    }
+  }
+
 
   public static createOrShow(
     extensionUri: vscode.Uri,
@@ -54,10 +83,23 @@ export class PreviewPanel {
     }
   }
 
+  public static registerSerializer(context: vscode.ExtensionContext, client: LanguageClient) {
+    const extensionUri = context.extensionUri;
+    context.subscriptions.push(vscode.window.registerWebviewPanelSerializer(PreviewPanel.viewType, {
+      async deserializeWebviewPanel(panel, state) {
+        panel.webview.options = { ...panel.webview.options, enableScripts: true };
+        const restored = new PreviewPanel(panel, extensionUri);
+        PreviewPanel.currentPanel = restored;
+        restorePanelState(restored, state);
+      }
+    }));
+  }
+
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this.panel = panel;
     this.extensionUri = extensionUri;
 
+    attachPanelPersistence(this);
     this.panel.webview.html = this.getHtmlForWebview();
 
     this.panel.webview.onDidReceiveMessage(
@@ -97,6 +139,7 @@ export class PreviewPanel {
 
     try {
       this.story.ResetState();
+      this.clearHistory();
       this.continueStory();
     } catch (e: any) {
       this.panel.webview.postMessage({
@@ -106,17 +149,19 @@ export class PreviewPanel {
     }
   }
 
-  private continueStory() {
+  private continueStory(highlightChoice = false) {
     if (!this.story) return;
 
     try {
-      const output: { text: string; tags: string[] }[] = [];
+      const output: { text: string; tags: string[]; kind?: string }[] = [];
 
       while (this.story.canContinue) {
         const text = this.story.Continue();
         const tags = this.story.currentTags || [];
         if (text) {
-          output.push({ text: text.trim(), tags });
+          const line = text.trim();
+          output.push({ text: line, tags, ...(highlightChoice && line ? { kind: "selected-choice" } : {}) });
+          if (line) highlightChoice = false;
         }
       }
 
@@ -132,14 +177,9 @@ export class PreviewPanel {
       try {
         const varState = this.story.variablesState;
         if (varState) {
-          const enumerator = varState.GetEnumerator?.();
-          if (enumerator) {
-            while (enumerator.MoveNext()) {
-              variables.push({
-                name: enumerator.Current.Key,
-                value: String(enumerator.Current.Value),
-              });
-            }
+          for (const name of Object.keys(varState).sort()) {
+            const value = varState.$(name);
+            variables.push({ name, value: value === null ? "null" : String(value) });
           }
         }
       } catch {
@@ -157,14 +197,16 @@ export class PreviewPanel {
         // Path access may fail
       }
 
-      this.panel.webview.postMessage({
-        type: "story",
-        output,
-        choices,
-        variables,
-        currentKnot,
+      this.previewOutput = this.previewOutput.concat(output);
+      this.previewView = {
+        type: "story", replaceOutput: true, output: this.previewOutput,
+        choices, variables, currentKnot,
         canContinue: this.story.canContinue,
         isEnd: choices.length === 0 && !this.story.canContinue,
+      };
+      this.panel.webview.postMessage({
+        ...this.previewView, replaceOutput: false, output,
+        canRewind: this.rewindHistory.length > 0,
       });
     } catch (e: any) {
       this.panel.webview.postMessage({
@@ -179,8 +221,14 @@ export class PreviewPanel {
       case "choice":
         if (this.story) {
           try {
+            if (!Number.isInteger(message.index) || message.index < 0 || message.index >= this.story.currentChoices.length) return;
+            this.rewindHistory.push({ state: this.story.state.ToJson(), view: this.previewView });
+            const choice = this.story.currentChoices[message.index];
+            const point = this.story.ContentAtPath(new choice.targetPath.constructor(choice.sourcePath)).obj;
+            // Only Ink's actual output is displayed; [choice-only] text stays suppressed.
+            const highlightChoice = !!point?.hasStartContent;
             this.story.ChooseChoiceIndex(message.index);
-            this.continueStory();
+            this.continueStory(highlightChoice);
           } catch (e: any) {
             this.panel.webview.postMessage({
               type: "error",
@@ -189,6 +237,9 @@ export class PreviewPanel {
           }
         }
         break;
+      case "rewind":
+        this.rewindStory();
+        break;
       case "restart":
         this.restartStory();
         break;
@@ -196,7 +247,7 @@ export class PreviewPanel {
         if (this.story && message.knot) {
           try {
             this.story.ChoosePathString(message.knot);
-            this.panel.webview.postMessage({ type: "clear" });
+            this.clearHistory();
             this.continueStory();
           } catch (e: any) {
             this.panel.webview.postMessage({
@@ -292,6 +343,7 @@ export class PreviewPanel {
     font-size: 12px;
   }
   button:hover { background: var(--btn-hover); }
+  button:disabled { opacity: 0.45; cursor: default; }
   #jump-input {
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
@@ -310,6 +362,15 @@ export class PreviewPanel {
   .text-line {
     margin-bottom: 8px;
     animation: fadeIn 0.3s ease-in;
+  }
+  .text-line.selected-choice {
+    color: var(--vscode-textLink-foreground);
+    font-weight: 600;
+    border-left: 3px solid var(--vscode-textLink-foreground);
+    background: var(--vscode-textBlockQuote-background, transparent);
+    padding: 6px 10px;
+    margin: 12px 0 8px;
+    white-space: pre-wrap;
   }
   .text-line .tags {
     color: var(--vscode-descriptionForeground);
@@ -390,6 +451,7 @@ export class PreviewPanel {
 <body>
   <div id="toolbar">
     <button onclick="restart()">Restart</button>
+    <button id="rewind-button" onclick="rewind()" title="Return to the previous choice" disabled>Rewind</button>
     <input id="jump-input" type="text" placeholder="Jump to knot..." />
     <button onclick="jumpToKnot()">Jump</button>
     <span id="current-knot" onclick="goToSource()"></span>
@@ -418,6 +480,7 @@ export class PreviewPanel {
           renderError(msg.message);
           break;
         case 'clear':
+          document.getElementById('rewind-button').disabled = true;
           document.getElementById('story-output').innerHTML = '';
           document.getElementById('choices').innerHTML = '';
           document.getElementById('end-marker').style.display = 'none';
@@ -427,9 +490,18 @@ export class PreviewPanel {
 
     function renderStory(data) {
       const output = document.getElementById('story-output');
+      if (data.replaceOutput) output.innerHTML = '';
+      if (Number.isInteger(data.truncateOutput)) {
+        for (const error of output.querySelectorAll('.error')) error.remove();
+        while (output.children.length > data.truncateOutput) {
+          output.lastElementChild.remove();
+        }
+      }
+      document.getElementById('rewind-button').disabled = !data.canRewind;
       for (const item of data.output) {
         const div = document.createElement('div');
-        div.className = 'text-line';
+        const isSelectedChoice = item.kind === 'selected-choice';
+        div.className = isSelectedChoice ? 'text-line selected-choice' : 'text-line';
         div.textContent = item.text;
         if (item.tags && item.tags.length > 0) {
           const tagSpan = document.createElement('span');
@@ -464,6 +536,8 @@ export class PreviewPanel {
       }
 
       // Update current knot
+      currentKnotName = data.currentKnot || '';
+      document.getElementById('current-knot').textContent = '';
       if (data.currentKnot) {
         currentKnotName = data.currentKnot;
         document.getElementById('current-knot').textContent =
@@ -481,6 +555,10 @@ export class PreviewPanel {
 
     function selectChoice(index) {
       vscode.postMessage({ type: 'choice', index });
+    }
+
+    function rewind() {
+      vscode.postMessage({ type: 'rewind' });
     }
 
     function restart() {
@@ -525,7 +603,37 @@ export class PreviewPanel {
         if (btns[num - 1]) btns[num - 1].click();
       }
     });
-  </script>
+
+    let inkStoredState = vscode.getState() || {};
+    function inkSaveUi() {
+      const scroll = {};
+      for (const el of document.querySelectorAll('[id]')) {
+        if (el.scrollTop || el.scrollLeft) scroll[el.id] = [el.scrollLeft, el.scrollTop];
+      }
+      inkStoredState.ui = {scroll, zoom: typeof currentZoom === 'number' ? currentZoom : undefined};
+      vscode.setState(inkStoredState);
+    }
+    window.addEventListener('message', event => {
+      if (event.data.inkSnapshot) {
+        inkStoredState.inkSnapshot = event.data.inkSnapshot;
+        vscode.setState(inkStoredState);
+      }
+      if (event.data.inkRestoreUi && inkStoredState.ui) {
+        if (typeof currentZoom === 'number' && typeof inkStoredState.ui.zoom === 'number') {
+          currentZoom = inkStoredState.ui.zoom;
+          applyZoom();
+        }
+        for (const [id, pos] of Object.entries(inkStoredState.ui.scroll || {})) {
+          const el = document.getElementById(id);
+          if (el) { el.scrollLeft = pos[0]; el.scrollTop = pos[1]; }
+        }
+      }
+    });
+    document.addEventListener('scroll', inkSaveUi, true);
+    document.addEventListener('click', inkSaveUi);
+    vscode.postMessage({type:'inkReady'});
+
+</script>
 </body>
 </html>`;
   }

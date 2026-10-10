@@ -41,7 +41,10 @@ export async function activate(context: vscode.ExtensionContext) {
   await client.start();
 
   // Load all .ink files in workspace for multi-file support
-  loadWorkspaceInkFiles();
+  await loadWorkspaceInkFiles();
+  PreviewPanel.registerSerializer(context, client);
+  VisualizerPanel.registerSerializer(context, client);
+  StatisticsPanel.registerSerializer(context, client);
 
   // --- Commands ---
   context.subscriptions.push(
